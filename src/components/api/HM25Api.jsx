@@ -106,3 +106,39 @@ export async function buildBurnTx(qHelper, sourcePublicKey, tick, amount) {
 
     return tx
 }
+
+// ✅ NUEVO PROCEDIMIENTO PERSONALIZADO PARA ReceivePayment
+export const PROC_RECEIVE_PAYMENT = 3 // 👈 Asegúrate de que coincida con el ID registrado en el contrato
+
+export async function buildReceivePaymentTx(qHelper, sourcePublicKey, tick, amount) {
+    const finalTick = tick + TICK_OFFSET
+    const INPUT_SIZE = 0
+    const TX_SIZE = qHelper.TRANSACTION_SIZE + INPUT_SIZE
+    const tx = new Uint8Array(TX_SIZE).fill(0)
+    const dv = new DataView(tx.buffer)
+
+    let offset = 0
+    tx.set(sourcePublicKey, offset)
+    offset += qHelper.PUBLIC_KEY_LENGTH
+
+    // 👇 Contrato objetivo
+    tx[offset] = HM25_CONTRACT_INDEX
+    offset += qHelper.PUBLIC_KEY_LENGTH
+
+    // 👇 Monto
+    dv.setBigInt64(offset, BigInt(amount), true)
+    offset += 8
+
+    // 👇 Tick objetivo
+    dv.setUint32(offset, finalTick, true)
+    offset += 4
+
+    // 👇 Tipo de procedimiento (el tuyo: ReceivePayment)
+    dv.setUint16(offset, PROC_RECEIVE_PAYMENT, true)
+    offset += 2
+
+    // 👇 Tamaño de entrada (0 en este caso)
+    dv.setUint16(offset, INPUT_SIZE, true)
+
+    return tx
+}

@@ -1,6 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
+import { Buffer } from 'buffer'
 import { useNotifications } from '../contexts/NotificationContext'
+import { useQubicConnect } from '../contexts/QubicConnectContext'
+import { buildReceivePaymentTx } from '../components/api/HM25Api'
 
 const QrPaymentPage = () => {
     const [amount, setAmount] = useState('')
@@ -10,56 +13,62 @@ const QrPaymentPage = () => {
     const [inputError, setInputError] = useState(false)
 
     const { addNotification } = useNotifications()
+    const { wallet, signTransaction, getTick, httpEndpoint: rpcUrl } = useQubicConnect()
 
-    // 👉 Aquí dejarías la lógica real que se conectará a la API de backend
-    const processPayment = async ({ amount, description }) => {
-        // 🧪 Simulación por ahora
-        const savedAmount = parseFloat(amount)
-        const savedPercentage = 10 // simula 10% de ahorro
-
-        // 1. Añadir notificación de pago
-        addNotification({
-            type: 'success',
-            title: 'Pago recibido',
-            message: `Recibiste $${savedAmount.toFixed(2)} por código QR.`,
-        })
-
-        // 2. Añadir notificación de ahorro automático
-        const saved = (savedAmount * savedPercentage) / 100
-        addNotification({
-            type: 'saving',
-            title: 'Ahorro automático',
-            message: `Se guardó el ${savedPercentage}% de tu pago: $${saved.toFixed(2)}.`,
-        })
-
-        // ✅ Marca como completado
-        setPaymentConfirmed(true)
-        setAmount('')
-        setDescription('')
-        setQrData(null)
-
-        // ✅ Cuando tengas la API lista, descomenta esta parte:
-        /*
+    const processPayment = async ({ amount }) => {
         try {
-            const result = await sendQrPayment({ amount, description })
-
-            if (result.success) {
-                // Puedes mostrar una notificación de éxito o actualizar estado
-            } else {
-                addNotification({
-                    type: 'warning',
-                    title: 'Pago fallido',
-                    message: result.message || 'No se pudo procesar el pago.',
-                })
+            const amountInt = parseInt(amount)
+                if (isNaN(amountInt) || amountInt <= 0) {
+                throw new Error('Monto no válido. Debe ser un número entero positivo.')
             }
-        } catch (error) {
+            const amountInUQU = amountInt * 1_000_000
+            const tick = await getTick()
+
+            const qHelperModule = await import('@qubic-lib/qubic-ts-library/dist/qubicHelper')
+            const qHelper = new qHelperModule.QubicHelper()
+
+            const sourcePublicKey = qHelper.getIdentityBytes(wallet.publicKey)
+            const tx = await buildReceivePaymentTx(qHelper, sourcePublicKey, tick, amountInUQU)
+            const signedTx = await signTransaction(tx)
+
+            const response = await fetch(`${rpcUrl}/v1/broadcast-transaction`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    transactionData: Buffer.from(signedTx).toString('base64'),
+                }),
+            })
+
+            if (!response.ok) {
+                const error = await response.text()
+                throw new Error(`Error RPC: ${error}`)
+            }
+
             addNotification({
-                type: 'warning',
-                title: 'Error de red',
-                message: error.message || 'Hubo un error al conectar con el servidor.',
+                type: 'success',
+                title: 'Pago recibido',
+                message: `Recibiste ${amount} QU a través del contrato.`,
+            })
+
+            const saved = (parseFloat(amount) * 0.1).toFixed(2)
+            addNotification({
+                type: 'saving',
+                title: 'Ahorro automático',
+                message: `Se guardó el 10% de tu pago: $${saved}.`,
+            })
+
+            setPaymentConfirmed(true)
+            setAmount('')
+            setDescription('')
+            setQrData(null)
+        } catch (err) {
+            console.error(err)
+            addNotification({
+                type: 'error',
+                title: 'Error en la transacción',
+                message: err.message,
             })
         }
-        */
     }
 
     const generateQR = () => {
@@ -75,7 +84,7 @@ const QrPaymentPage = () => {
 
     const handleInputChange = (e) => {
         const value = e.target.value
-        const isValid = /^\d*\.?\d{0,2}$/.test(value) || value === ''
+        const isValid = /^\d+$/.test(value) || value === ''
         if (isValid) {
             setAmount(value)
             setInputError(false)
@@ -88,11 +97,10 @@ const QrPaymentPage = () => {
         <div className="p-6 max-w-2xl mx-auto text-white space-y-8">
             <h1 className="text-3xl font-bold text-primary-50">Pago con QR</h1>
 
-            {/* Formulario de datos */}
             <div className="space-y-4">
                 <input
-                    type="text"
-                    inputMode="decimal"
+                    type="number"
+                    inputMode="numeric"
                     value={amount}
                     onChange={handleInputChange}
                     placeholder="Monto a pagar"
@@ -122,7 +130,6 @@ const QrPaymentPage = () => {
                 </button>
             </div>
 
-            {/* QR generado */}
             {qrData && (
                 <div className="flex flex-col items-center gap-4 mt-6">
                     <QRCodeCanvas value={qrData} size={200} />
@@ -135,7 +142,6 @@ const QrPaymentPage = () => {
                 </div>
             )}
 
-            {/* Confirmación */}
             {paymentConfirmed && (
                 <div className="bg-green-900 text-green-200 p-4 mt-6 rounded-xl text-center shadow-lg">
                     ✅ Pago confirmado y se ha ahorrado el 10% automáticamente.
