@@ -7,7 +7,7 @@ import { useQubicConnect } from './QubicConnectContext'
 const HM25Context = createContext()
 
 const initialState = {
-    stats: { numberOfEchoCalls: 0n, numberOfBurnCalls: 0n },
+    stats: { totalPayments: 0n, totalAmount: 0n },
     loading: false,
     error: null,
 }

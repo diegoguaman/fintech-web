@@ -6,7 +6,7 @@ import { useQubicConnect } from '../contexts/QubicConnectContext'
 import { buildReceivePaymentTx } from '../components/api/HM25Api'
 
 const QrPaymentPage = () => {
-    const [amount, setAmount] = useState('')
+    const [amount, setAmount] = useState(0)
     const [description, setDescription] = useState('')
     const [qrData, setQrData] = useState(null)
     const [paymentConfirmed, setPaymentConfirmed] = useState(false)
@@ -101,7 +101,7 @@ const QrPaymentPage = () => {
                 <input
                     type="number"
                     inputMode="numeric"
-                    value={amount}
+                    value={parseInt(amount)}
                     onChange={handleInputChange}
                     placeholder="Monto a pagar"
                     className={`w-full p-3 rounded-lg bg-gray-800 text-white placeholder-gray-400 border ${

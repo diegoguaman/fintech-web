@@ -43,20 +43,20 @@ export async function fetchHM25Stats(httpEndpoint) {
         if (buf.length < 16) { // Ensure buffer has at least 16 bytes (2 * 8 bytes)
             console.warn('Buffer too short for stats, returning defaults:', buf.length)
             return {
-                numberOfEchoCalls: 0n,
-                numberOfBurnCalls: 0n,
+                totalPayments: 0n,
+                totalAmount: 0n,
             }
         }
 
         return {
-            numberOfEchoCalls: buf.readBigUInt64LE(0),
-            numberOfBurnCalls: buf.readBigUInt64LE(8),
+            totalPayments: buf.readBigUInt64LE(0),
+            totalAmount: buf.readBigUInt64LE(8),
         }
     } catch (error) {
         console.error('Error fetching HM25 stats:', error)
         return {
-            numberOfEchoCalls: 0n,
-            numberOfBurnCalls: 0n,
+            totalPayments: 0n,
+            totalAmount: 0n,
         }
     }
 }
